@@ -67,11 +67,9 @@ app.get('/', async (req, res) => {
         const protocol = req.headers['x-forwarded-proto'] || 'http';
         const baseUrl = `${protocol}://${req.get('host')}`;
         
-        // Formats data ko clean kar ke proxy download links lagana
         let cleanFormats = [];
         if (metaData.formats && Array.isArray(metaData.formats)) {
             cleanFormats = metaData.formats.map(f => {
-                // Har format ke liye alag se aapka hidden vercel url banana
                 const formatParam = f.format_id === 'best' ? 'best' : f.format_id;
                 const extParam = f.ext || 'mp4';
                 return {
@@ -83,7 +81,7 @@ app.get('/', async (req, res) => {
             });
         }
 
-        // Final Filtered Single Response (No Double Data, No Extra Data)
+        // Final Single Filtered Response (Duplicate default_download_url Removed)
         const customResponse = {
             status: "success",
             developer: "Dev Ramzan Ahsan",
@@ -93,9 +91,6 @@ app.get('/', async (req, res) => {
                 thumbnail: metaData.thumbnail || metaData.cover || metaData.image || null,
                 uploader: metaData.uploader || metaData.author_name || "Unknown Uploader",
                 original_url: videoUrl,
-                // Direct Best quality download link ko top par rakha hai quick use ke liye
-                default_download_url: `${baseUrl}/download-file?url=${encodeURIComponent(videoUrl)}&format=best&ext=mp4`,
-                // Aapke saare formats ab single place par clean ho kar aayenge
                 available_formats: cleanFormats
             }
         };
@@ -103,7 +98,6 @@ app.get('/', async (req, res) => {
         return res.status(200).json(customResponse);
 
     } catch (error) {
-        // Fallback response agar API down ho
         const protocol = req.headers['x-forwarded-proto'] || 'http';
         const baseUrl = `${protocol}://${req.get('host')}`;
         
@@ -114,7 +108,6 @@ app.get('/', async (req, res) => {
             video_info: {
                 title: "Media File",
                 original_url: videoUrl,
-                default_download_url: `${baseUrl}/download-file?url=${encodeURIComponent(videoUrl)}&format=best&ext=mp4`,
                 available_formats: [
                     {
                         quality: "⭐ Best Quality (Auto)",
@@ -136,7 +129,6 @@ app.get('/download-file', async (req, res) => {
 
     if (!targetUrl) return res.status(400).send("Missing URL parameter");
 
-    // Dynamic format settings mapping
     const downloadEndpoint = `https://savemedia.site/api/download.php?url=${encodeURIComponent(targetUrl)}&format=${format}&ext=${ext}`;
 
     try {
