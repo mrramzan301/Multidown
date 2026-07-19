@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const crypto = require('crypto'); // Random name generate karne ke liye built-in module
 const app = express();
 
 app.use(express.json());
@@ -66,7 +67,7 @@ app.get('/', async (req, res) => {
 
         const protocol = req.headers['x-forwarded-proto'] || 'http';
         const baseUrl = `${protocol}://${req.get('host')}`;
-        
+
         let cleanFormats = [];
         if (metaData.formats && Array.isArray(metaData.formats)) {
             cleanFormats = metaData.formats.map(f => {
@@ -81,7 +82,6 @@ app.get('/', async (req, res) => {
             });
         }
 
-        // Final Single Filtered Response (Duplicate default_download_url Removed)
         const customResponse = {
             status: "success",
             developer: "Dev Ramzan Ahsan",
@@ -121,7 +121,7 @@ app.get('/', async (req, res) => {
     }
 });
 
-// 3. Downloader Proxy Endpoint
+// 3. Downloader Proxy Endpoint (Random Filename Generator)
 app.get('/download-file', async (req, res) => {
     const targetUrl = req.query.url;
     const format = req.query.format || 'best';
@@ -143,7 +143,11 @@ app.get('/download-file', async (req, res) => {
             responseType: 'stream'
         });
 
-        const filename = ext === 'mp3' ? 'audio.mp3' : 'video.mp4';
+        // 🎲 Yahan par 8 characters ka ek bilkul unique random alphanumeric code generate hoga (e.g., '6i3bjh7a')
+        const randomString = crypto.randomBytes(4).toString('hex');
+        
+        const filename = `${randomString}.${ext}`;
+        
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', responseStream.headers['content-type'] || (ext === 'mp3' ? 'audio/mpeg' : 'video/mp4'));
         
