@@ -4,13 +4,11 @@ const app = express();
 
 app.use(express.json());
 
-// ⚡ CORS Issue khatam karne ke liye Headers setup
+// CORS Setup
 app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Har website/frontend ko allow karega
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    
-    // OPTIONS request (Pre-flight) ko foran handle karne ke liye
     if (req.method === 'OPTIONS') {
         return res.sendStatus(200);
     }
@@ -68,42 +66,63 @@ app.get('/', async (req, res) => {
 
         const protocol = req.headers['x-forwarded-proto'] || 'http';
         const baseUrl = `${protocol}://${req.get('host')}`;
-        const secureDownloadUrl = `${baseUrl}/download-file?url=${encodeURIComponent(videoUrl)}`;
+        
+        // Formats data ko clean kar ke proxy download links lagana
+        let cleanFormats = [];
+        if (metaData.formats && Array.isArray(metaData.formats)) {
+            cleanFormats = metaData.formats.map(f => {
+                // Har format ke liye alag se aapka hidden vercel url banana
+                const formatParam = f.format_id === 'best' ? 'best' : f.format_id;
+                const extParam = f.ext || 'mp4';
+                return {
+                    quality: f.quality || "Standard",
+                    type: f.type || "video",
+                    extension: extParam,
+                    download_url: `${baseUrl}/download-file?url=${encodeURIComponent(videoUrl)}&format=${formatParam}&ext=${extParam}`
+                };
+            });
+        }
 
+        // Final Filtered Single Response (No Double Data, No Extra Data)
         const customResponse = {
             status: "success",
             developer: "Dev Ramzan Ahsan",
             join_group: "https://chat.whatsapp.com/LYqp196iG0E0H5QtPR3ogZ",
             video_info: {
-                title: metaData.title || metaData.description || "No Title Found",
+                title: metaData.title || metaData.description || "Video File",
                 thumbnail: metaData.thumbnail || metaData.cover || metaData.image || null,
-                duration: metaData.duration || null,
-                author: {
-                    id: metaData.author_id || metaData.username || null,
-                    name: metaData.author_name || metaData.nickname || metaData.author || null,
-                    profile_pic: metaData.author_avatar || null
-                },
+                uploader: metaData.uploader || metaData.author_name || "Unknown Uploader",
                 original_url: videoUrl,
-                download_url: secureDownloadUrl
-            },
-            extra_data: metaData
+                // Direct Best quality download link ko top par rakha hai quick use ke liye
+                default_download_url: `${baseUrl}/download-file?url=${encodeURIComponent(videoUrl)}&format=best&ext=mp4`,
+                // Aapke saare formats ab single place par clean ho kar aayenge
+                available_formats: cleanFormats
+            }
         };
 
         return res.status(200).json(customResponse);
 
     } catch (error) {
+        // Fallback response agar API down ho
         const protocol = req.headers['x-forwarded-proto'] || 'http';
         const baseUrl = `${protocol}://${req.get('host')}`;
-        const secureDownloadUrl = `${baseUrl}/download-file?url=${encodeURIComponent(videoUrl)}`;
-
+        
         return res.status(200).json({
             status: "partial_success",
             developer: "Dev Ramzan Ahsan",
             join_group: "https://chat.whatsapp.com/LYqp196iG0E0H5QtPR3ogZ",
-            note: "Metadata couldn't be fetched, but download link is ready.",
             video_info: {
+                title: "Media File",
                 original_url: videoUrl,
-                download_url: secureDownloadUrl
+                default_download_url: `${baseUrl}/download-file?url=${encodeURIComponent(videoUrl)}&format=best&ext=mp4`,
+                available_formats: [
+                    {
+                        quality: "⭐ Best Quality (Auto)",
+                        type: "video",
+                        extension: "mp4",
+                        download_url: `${baseUrl}/download-file?url=${encodeURIComponent(videoUrl)}&format=best&ext=mp4`
+                    }
+                ]
             }
         });
     }
@@ -112,9 +131,13 @@ app.get('/', async (req, res) => {
 // 3. Downloader Proxy Endpoint
 app.get('/download-file', async (req, res) => {
     const targetUrl = req.query.url;
+    const format = req.query.format || 'best';
+    const ext = req.query.ext || 'mp4';
+
     if (!targetUrl) return res.status(400).send("Missing URL parameter");
 
-    const downloadEndpoint = `https://savemedia.site/api/download.php?url=${encodeURIComponent(targetUrl)}&format=best&ext=mp4`;
+    // Dynamic format settings mapping
+    const downloadEndpoint = `https://savemedia.site/api/download.php?url=${encodeURIComponent(targetUrl)}&format=${format}&ext=${ext}`;
 
     try {
         const headers = {
@@ -128,8 +151,9 @@ app.get('/download-file', async (req, res) => {
             responseType: 'stream'
         });
 
-        res.setHeader('Content-Disposition', 'attachment; filename="video.mp4"');
-        res.setHeader('Content-Type', responseStream.headers['content-type'] || 'video/mp4');
+        const filename = ext === 'mp3' ? 'audio.mp3' : 'video.mp4';
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Type', responseStream.headers['content-type'] || (ext === 'mp3' ? 'audio/mpeg' : 'video/mp4'));
         
         responseStream.data.pipe(res);
     } catch (err) {
