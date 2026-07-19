@@ -1,0 +1,10 @@
+{
+  "name": "ramzan-media-downloader-api",
+  "version": "1.0.0",
+  "description": "Multi-source video downloader API proxy",
+  "main": "api/index.js",
+  "dependencies": {
+    "express": "^4.19.2",
+    "axios": "^1.7.2"
+  }
+}
